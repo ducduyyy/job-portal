@@ -1,25 +1,25 @@
-# Stage 1: build with JDK 23
+# Stage 1: build backend
 FROM eclipse-temurin:23-jdk AS build
 WORKDIR /app
 
-# Copy backend source from repo root
+# Copy backend source
 COPY backEnd/jobPortal/ .
 
-# make wrapper executable
-RUN chmod +x ./gradlew
+# Make gradlew executable
+RUN chmod +x gradlew
 
-# Build the application
+# Build Spring Boot JAR
 RUN ./gradlew clean bootJar -x test --no-daemon
 
-# Debug: list jar (optional)
-RUN ls -la build/libs || true
+# Debug: show JAR
+RUN ls -la build/libs
 
-# Stage 2: runtime
+# Stage 2: run JAR
 FROM eclipse-temurin:23-jre
 WORKDIR /app
 
-# copy jar
 COPY --from=build /app/build/libs/*.jar app.jar
 
 EXPOSE 8080
+
 ENTRYPOINT ["sh","-c","java -jar app.jar --server.port=${PORT:-8080}"]

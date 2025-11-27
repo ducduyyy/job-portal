@@ -1,7 +1,8 @@
-.gradle
-build
-out
-**/node_modules
-**/target
 .git
 .gitignore
+**/node_modules
+**/.idea
+**/out
+**/target
+frontEnd/node_modules
+frontEnd/dist
