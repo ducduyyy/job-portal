@@ -1,24 +1,27 @@
-# Use JDK 23
-FROM eclipse-temurin:23-jdk
-
-# Set working directory
+# Build stage (JDK 23)
+FROM eclipse-temurin:23-jdk AS build
 WORKDIR /app
 
-# Copy Gradle build files
-COPY backEnd/jobPortal/gradlew .
-COPY backEnd/jobPortal/gradle ./gradle
-COPY backEnd/jobPortal/build.gradle .
-COPY backEnd/jobPortal/settings.gradle .
-COPY backEnd/jobPortal/src ./src
+# Copy wrapper + gradle config + source (relative to build context)
+COPY gradlew .
+COPY gradle ./gradle
+COPY build.gradle .
+COPY settings.gradle .
+COPY src ./src
 
-# Grant permission for Gradlew
+# make gradlew executable
 RUN chmod +x gradlew
 
-# Build the application
+# Build jar
 RUN ./gradlew build -x test
 
-# Expose port (Railway uses env PORT)
+# Run stage (JRE)
+FROM eclipse-temurin:23-jre
+WORKDIR /app
+
+# Copy jar from build stage
+COPY --from=build /app/build/libs/*.jar app.jar
+
 EXPOSE 8080
 
-# Run jar file
-CMD ["sh", "-c", "java -jar build/libs/*.jar"]
+CMD ["sh", "-c", "java -jar app.jar --server.port=${PORT:-8080}"]
