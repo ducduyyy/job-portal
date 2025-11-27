@@ -3,7 +3,9 @@ FROM eclipse-temurin:23-jdk AS build
 WORKDIR /app
 
 # Copy backend source
-COPY backEnd/jobPortal/ .
+# copy backend source from repo root (explicit relative path)
+COPY ./backEnd/jobPortal/ .
+
 
 # Make gradlew executable
 RUN chmod +x gradlew
