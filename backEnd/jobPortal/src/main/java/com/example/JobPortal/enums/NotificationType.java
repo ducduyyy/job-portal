@@ -1,0 +1,17 @@
+package com.example.JobPortal.enums;
+
+public enum NotificationType {
+    JOB_REPORTED,
+    JOB_HIDDEN,
+    JOB_CREATED,
+    JOB_UPDATED,
+    JOB_DELETED,
+    JOB_APPLIED,
+    APPLICATION_ACCEPTED,
+    APPLICATION_REJECTED,
+    CANDIDATE_UPLOAD_CV,
+    CANDIDATE_UPLOAD_AVATAR,
+    USER_REGISTERED,
+    USER_DELETED,
+    REPORT_RECEIVED
+}

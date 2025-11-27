@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vite + React</title>
+  <script src="http://localhost:8097"></script>
+  <style>
+    .goog-te-banner-frame.skiptranslate {
+      display: none !important;
+    }
+
+    body {
+      top: 0 !important;
+    }
+
+    .goog-logo-link {
+      display: none !important;
+    }
+
+    .goog-te-gadget {
+      height: 0;
+      overflow: hidden;
+    }
+  </style>
+
+</head>
+
+<body>
+  <div id="google_translate_element" style="display:none"></div>
+  <div id="root"></div>
+
+  <script>
+    function googleTranslateElementInit() {
+      new google.translate.TranslateElement({
+        pageLanguage: 'en',
+        includedLanguages: 'en,ja,vi',
+        autoDisplay: false
+      }, 'google_translate_element');
+    }
+  </script>
+  <script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+  <script>
+    // Chặn Google Translate làm thay đổi DOM gây crash
+    const blockUnsafeOps = () => {
+      const originalRemoveChild = Node.prototype.removeChild;
+      Node.prototype.removeChild = function (child) {
+        try {
+          return originalRemoveChild.call(this, child);
+        } catch (e) {
+          console.warn("Google Translate DOM conflict avoided:", e);
+          return child;
+        }
+      };
+
+      const originalInsertBefore = Node.prototype.insertBefore;
+      Node.prototype.insertBefore = function (newNode, refNode) {
+        try {
+          return originalInsertBefore.call(this, newNode, refNode);
+        } catch (e) {
+          console.warn("Google Translate DOM conflict avoided:", e);
+          return newNode;
+        }
+      };
+    };
+
+    blockUnsafeOps();
+  </script>
+
+  <script src="https://js.puter.com/v2/"></script>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
+</html>
