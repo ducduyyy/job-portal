@@ -1,28 +1,24 @@
-# ---------- Build stage ----------
-FROM eclipse-temurin:23-jdk AS build
+# Use JDK 23
+FROM eclipse-temurin:23-jdk
 
+# Set working directory
 WORKDIR /app
 
-# copy chỉ phần backend (nếu Docker context là thư mục backend)
-# nếu bạn đặt Dockerfile trong backEnd/jobPortal thì lệnh COPY . . là ok
-COPY . .
+# Copy Gradle build files
+COPY backEnd/jobPortal/gradlew .
+COPY backEnd/jobPortal/gradle ./gradle
+COPY backEnd/jobPortal/build.gradle .
+COPY backEnd/jobPortal/settings.gradle .
+COPY backEnd/jobPortal/src ./src
 
-# đảm bảo gradlew executable (nếu cần)
-RUN chmod +x ./gradlew
+# Grant permission for Gradlew
+RUN chmod +x gradlew
 
-# build jar (bỏ test để nhanh hơn; bỏ -x test nếu muốn chạy test)
-RUN ./gradlew bootJar -x test
+# Build the application
+RUN ./gradlew build -x test
 
-# ---------- Run stage ----------
-FROM eclipse-temurin:23-jre
+# Expose port (Railway uses env PORT)
+EXPOSE 8080
 
-WORKDIR /app
-
-# copy jar từ stage build (nếu nhiều jar, wildcard *)
-COPY --from=build /app/build/libs/*.jar app.jar
-
-# Railway cung cấp PORT biến môi trường; Spring Boot sẽ đọc --server.port
-ENV PORT=8080
-
-# Start app, Spring Boot sẽ dùng server.port từ env
-CMD ["sh", "-c", "java -jar app.jar --server.port=${PORT}"]
+# Run jar file
+CMD ["sh", "-c", "java -jar build/libs/*.jar"]
