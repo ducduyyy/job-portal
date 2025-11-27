@@ -1,0 +1,3 @@
+# cho phép Gradle tự download JDK nếu cần
+org.gradle.java.installations.auto-download=true
+# (tuỳ phiên bản Gradle có thể khác tên param; nếu repo dùng Railpack, auto-download có thể bị block)
