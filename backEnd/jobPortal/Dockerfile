@@ -1,27 +1,22 @@
-# Build stage (JDK 23)
+# ===== BUILD =====
 FROM eclipse-temurin:23-jdk AS build
 WORKDIR /app
 
-# Copy wrapper + gradle config + source (relative to build context)
-COPY gradlew .
-COPY gradle ./gradle
-COPY build.gradle .
-COPY settings.gradle .
-COPY src ./src
+# Copy backend source
+COPY backEnd/jobPortal/ .
 
-# make gradlew executable
+# cấp quyền cho gradlew
 RUN chmod +x gradlew
 
-# Build jar
-RUN ./gradlew build -x test
+# build JAR
+RUN ./gradlew clean bootJar --no-daemon
 
-# Run stage (JRE)
+# ===== RUN =====
 FROM eclipse-temurin:23-jre
 WORKDIR /app
 
-# Copy jar from build stage
+# copy file jar sang image
 COPY --from=build /app/build/libs/*.jar app.jar
 
 EXPOSE 8080
-
-CMD ["sh", "-c", "java -jar app.jar --server.port=${PORT:-8080}"]
+ENTRYPOINT ["java", "-jar", "app.jar"]
