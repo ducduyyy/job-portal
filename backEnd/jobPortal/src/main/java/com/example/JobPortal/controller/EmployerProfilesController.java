@@ -30,15 +30,17 @@ public class EmployerProfilesController {
     private final FileStorageService fileStorageService;
 
     @PostMapping("/{userId}/profile")
-    public ResponseEntity<EmployerProfiles> create(
+    public ResponseEntity<EmployerProfileResponse> create(
             @PathVariable Long userId,
             @RequestBody EmployerProfileRequest request
     ) {
         User user = userService.getById(userId);
         EmployerProfiles profile = employerProfilesService.createOrUpdateProfile(user, request);
-        return ResponseEntity.ok(profile);
-    }
 
+        // map sang DTO và trả về
+        EmployerProfileResponse dto = employerProfilesService.toResponse(profile);
+        return ResponseEntity.ok(dto);
+    }
     @GetMapping("/{userId}/profile")
     public ResponseEntity<EmployerProfileResponse> getProfile(@PathVariable Long userId) {
         return employerProfilesService.getByUserId(userId)
@@ -48,7 +50,7 @@ public class EmployerProfilesController {
     }
 
     @PostMapping("/edit/{userId}/profile")
-    public ResponseEntity<EmployerProfiles> updateProfile(
+    public ResponseEntity<EmployerProfileResponse> updateProfile(
             @PathVariable Long userId,
             @RequestPart("profile") EmployerProfileRequest request,
             @RequestPart(value = "companyPic", required = false) MultipartFile[] companyPics,
@@ -76,9 +78,10 @@ public class EmployerProfilesController {
 
 
         EmployerProfiles profile = employerProfilesService.createOrUpdateProfile(user, request);
-        return ResponseEntity.ok(profile);
-    }
 
+        EmployerProfileResponse dto = employerProfilesService.toResponse(profile);
+        return ResponseEntity.ok(dto);
+    }
 
     // Lấy avatar
     @GetMapping("/avatar/{filename}")

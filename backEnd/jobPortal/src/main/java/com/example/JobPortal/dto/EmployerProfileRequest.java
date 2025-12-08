@@ -6,6 +6,7 @@ import lombok.Setter;
 
 @Data
 @Getter @Setter
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class EmployerProfileRequest {
     private String companyName;
     private String companyAddress;
