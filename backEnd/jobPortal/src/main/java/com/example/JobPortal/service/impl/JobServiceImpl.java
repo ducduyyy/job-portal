@@ -1,24 +1,35 @@
 package com.example.JobPortal.service.impl;
 
 import com.example.JobPortal.dto.JobDto;
+import com.example.JobPortal.dto.JobSearchCriteria;
 import com.example.JobPortal.enums.JobStatus;
+import com.example.JobPortal.enums.JobType;
 import com.example.JobPortal.enums.NotificationType;
 import com.example.JobPortal.model.*;
 import com.example.JobPortal.repository.*;
 import com.example.JobPortal.service.itf.JobService;
 
 import com.example.JobPortal.service.util.NotificationBuilder;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import com.example.JobPortal.dto.JobSearchCriteria;
+import org.springframework.data.jpa.domain.Specification;
+import jakarta.persistence.criteria.Predicate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -473,7 +484,66 @@ public class JobServiceImpl implements JobService {
                 .toList();
     }
 
+    @Override
+    public List<JobDto> searchJobsAdvanced(JobSearchCriteria criteria) {
+        Specification<Jobs> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
 
+            // 1. Status & Visible
+            predicates.add(cb.equal(root.get("status"), JobStatus.OPEN));
+            predicates.add(cb.equal(root.get("visible"), true));
+
+            // 2. TÌM THEO TỪ KHÓA CHUNG (Query) - SỬA LẠI ĐỂ CHẶT CHẼ HƠN
+            if (criteria.getQuery() != null && !criteria.getQuery().isEmpty()) {
+                String keyword = criteria.getQuery().toLowerCase();
+                // Chỉ tìm trong Title (Tiêu đề) để đỡ bị nhiễu hơn là tìm cả trong Description
+                Predicate titlePred = cb.like(cb.lower(root.get("title")), "%" + keyword + "%");
+                predicates.add(titlePred);
+            }
+
+            // 3. TÌM THEO NGÀNH (INDUSTRY)
+            if (criteria.getIndustry() != null && !criteria.getIndustry().isEmpty()) {
+                // Join bảng Industry và tìm theo tên ngành
+                Predicate industryPred = cb.like(
+                        cb.lower(root.get("industry").get("name")),
+                        "%" + criteria.getIndustry().toLowerCase() + "%"
+                );
+                predicates.add(industryPred);
+            }
+
+            // 4. Location
+            if (criteria.getLocation() != null && !criteria.getLocation().isEmpty()) {
+                predicates.add(cb.like(cb.lower(root.get("location")), "%" + criteria.getLocation().toLowerCase() + "%"));
+            }
+
+            if (criteria.getExcludeLocation() != null && !criteria.getExcludeLocation().isEmpty()) {
+                // notLike: Loại bỏ các job có địa điểm chứa từ khóa này
+                predicates.add(cb.notLike(cb.lower(root.get("location")), "%" + criteria.getExcludeLocation().toLowerCase() + "%"));
+            }
+
+            // 5. Salary
+            if (criteria.getMinSalary() != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("salaryMax"), criteria.getMinSalary()));
+            }
+
+            // 6. Skills
+            if (criteria.getSkills() != null && !criteria.getSkills().isEmpty()) {
+                Join<Jobs, JobSkill> jobSkillJoin = root.join("jobSkills", JoinType.INNER);
+                Join<JobSkill, Skills> skillJoin = jobSkillJoin.join("skill", JoinType.INNER);
+                List<Predicate> skillPredicates = new ArrayList<>();
+                for (String skillName : criteria.getSkills()) {
+                    skillPredicates.add(cb.like(cb.lower(skillJoin.get("name")), "%" + skillName.toLowerCase() + "%"));
+                }
+                predicates.add(cb.or(skillPredicates.toArray(new Predicate[0])));
+                query.distinct(true);
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        List<Jobs> matchedJobs = jobRepository.findAll(spec);
+        return matchedJobs.stream().limit(10).map(this::mapToDto).collect(Collectors.toList());
+    }
 
 }
 

@@ -62,36 +62,36 @@ export function ChatBot() {
   }, [isOpen]);
 
   const initConversation = async () => {
-  try {
-    const userId = user?.id || null;
-    const conv = await ChatService.createConversation(userId);
-    console.log("🧩 Created conversation:", conv);
+    try {
+      const userId = user?.id || null;
+      const conv = await ChatService.createConversation(userId);
+      console.log("🧩 Created conversation:", conv);
 
-    const convId = conv.id ?? conv.conversationId;
-    if (!convId) {
-      console.error("❌ Không nhận được conversationId từ BE:", conv);
-      return;
+      const convId = conv.id ?? conv.conversationId;
+      if (!convId) {
+        console.error("❌ Không nhận được conversationId từ BE:", conv);
+        return;
+      }
+
+      setConversationId(convId);
+      localStorage.setItem("conversationId", convId);
+
+      // 🔹 Gửi câu chào đầu tiên vào backend để lưu như message thật
+      const greeting = "Xin chào 👋! Tôi là trợ lý việc làm JobPortal. Bạn đang muốn tìm công việc ở lĩnh vực hoặc vị trí nào?";
+      await ChatService.sendMessage(greeting, convId, [], userId);
+
+      // 🔹 Cập nhật hiển thị FE
+      const botGreeting = {
+        id: Date.now(),
+        role: "assistant",
+        content: greeting,
+      };
+      setMessages([botGreeting]);
+      localStorage.setItem("chatHistory", JSON.stringify([botGreeting]));
+    } catch (err) {
+      console.error("Init conversation error:", err);
     }
-
-    setConversationId(convId);
-    localStorage.setItem("conversationId", convId);
-
-    // 🔹 Gửi câu chào đầu tiên vào backend để lưu như message thật
-    const greeting = "Xin chào 👋! Tôi là trợ lý việc làm JobPortal. Bạn đang muốn tìm công việc ở lĩnh vực hoặc vị trí nào?";
-    await ChatService.sendMessage(greeting, convId, [], userId);
-
-    // 🔹 Cập nhật hiển thị FE
-    const botGreeting = {
-      id: Date.now(),
-      role: "assistant",
-      content: greeting,
-    };
-    setMessages([botGreeting]);
-    localStorage.setItem("chatHistory", JSON.stringify([botGreeting]));
-  } catch (err) {
-    console.error("Init conversation error:", err);
-  }
-};
+  };
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
@@ -114,77 +114,117 @@ export function ChatBot() {
       let aiText = "";
       let suggestedJobs = [];
 
-      // ✅ Tạo context job thật cho GPT-5
-      const jobContext =
-        allJobs && allJobs.length > 0
-          ? allJobs
-            .slice(0, 10)
-            .map(
-              (j, idx) =>
-                `${idx + 1}. ${j.title} – ${j.location} – ${j.salaryMin || ""} → ${j.salaryMax || ""}`
-            )
-            .join("\n")
-          : "Không có dữ liệu công việc.";
+      // ✅ 1. KIỂM TRA PUTER AI
+      if (window.puter?.ai?.chat) {
+        console.log("[ChatBot] Bắt đầu quy trình RAG Nâng cao...");
 
-      // ✅ Thử gọi GPT-5 qua Puter SDK
-      try {
-        if (window.puter?.ai?.chat) {
-          console.log("[ChatBot] Gọi GPT-5 với context job...");
+        // 🧠 BƯỚC 1: GỌI AI ĐỂ TRÍCH XUẤT THÔNG TIN (Thêm trường skills)
+        const extractPrompt = [
+          {
+            role: "system",
+            content: `Bạn là bộ lọc dữ liệu. Nhiệm vụ:
+            Phân tích câu nói và trích xuất JSON gồm:
+            - query: từ khóa chung.
+            - industry: Ngành nghề (nếu có).
+            - location: địa điểm MUỐN tìm (Ví dụ: "tại Hà Nội").
+            - excludeLocation: địa điểm MUỐN TRÁNH/LOẠI TRỪ. 
+              (Quy tắc: Nếu người dùng nói "ngoài Hà Nội", "không phải HCM", "khác Đà Nẵng" -> điền vào excludeLocation, để null location).
+            - minSalary: lương (số).
+            - jobType: FULL_TIME/PART_TIME.
+            - skills: Mảng kỹ năng.
+            
+            Chỉ trả về JSON.`
+          },
+          { role: "user", content: inputMessage.trim() }
+        ];
 
-          const response = await window.puter.ai.chat(
-            [
-              {
-                role: "system",
-                content: `
-                Bạn là trợ lý việc làm của hệ thống JobPortal.
-                - Luôn trả lời bằng tiếng Việt, ngắn gọn, tự nhiên.
-                - Tuyệt đối KHÔNG bịa ra công việc mới.
-                - Chỉ gợi ý các công việc có trong danh sách dưới đây (danh sách thật từ cơ sở dữ liệu).
-                - Nếu người dùng hỏi “ngành”, “lĩnh vực” hoặc “vị trí”, hãy chọn các job có keyword liên quan.
-                - Khi trả lời, hãy đề cập lại chính xác tên job (ví dụ: "Java Web Developer", "Mobile Developer", ...).
-                - Nếu không chắc, chỉ nói: “Hiện tôi chỉ có thể gợi ý các công việc sẵn có trong danh sách”.
-                - Không cần liệt kê kỹ năng hay mô tả dài dòng, chỉ giới thiệu tên job, công ty và địa điểm.
-                `,
-              },
-              {
-                role: "system",
-                content: "📋 Danh sách công việc hiện có trong hệ thống:\n" + jobContext,
-              },
-              ...messages.map((m) => ({
-                role: m.role,
-                content: m.content,
-              })),
-              { role: "user", content: inputMessage.trim() },
-            ],
-            { model: "gpt-5-mini" }
-          );
+        const extractResponse = await window.puter.ai.chat(extractPrompt, { model: "gpt-4o-mini" });
 
+        let searchCriteria = {};
+        try {
+          const rawJson = extractResponse?.message?.content || extractResponse?.toString();
+          const jsonString = rawJson.replace(/```json|```/g, '').trim();
+          searchCriteria = JSON.parse(jsonString);
+          console.log("🔍 AI Extracted:", searchCriteria);
+        } catch (e) {
+          searchCriteria = { query: inputMessage.trim() };
+        }
 
-          // ⚙️ Một số response trả object -> ép về string
-          const rawMsg = response?.message || response?.choices?.[0]?.message?.content || "";
-          aiText =
-            typeof rawMsg === "string"
-              ? rawMsg
-              : rawMsg?.content || JSON.stringify(rawMsg, null, 2);
+        // 🧠 BƯỚC 2: GỌI BACKEND API (SEARCH ADVANCED)
+        let matchedJobs = [];
+        let isFallback = false; // Cờ đánh dấu xem có phải đang dùng fallback không
 
-          // 🧠 Trích xuất job gợi ý
-          const jobMatches = allJobs.filter((job) => {
-            const text = aiText.toLowerCase();
-            return (
-              text.includes(job.title.toLowerCase()) ||
-              text.includes(job.location.toLowerCase()) ||
-              text.includes(job.companyName?.toLowerCase())
-            );
+        try {
+          const res = await fetch('http://localhost:8080/api/jobs/search-advanced', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(searchCriteria)
           });
 
-          suggestedJobs = jobMatches.slice(0, 5);
-        } else {
-          throw new Error("Puter SDK không khả dụng");
+          if (res.ok) {
+            matchedJobs = await res.json();
+          }
+        } catch (err) {
+          console.error("API Error:", err);
         }
-      } catch (err) {
-        console.warn("[ChatBot] GPT-5 lỗi, fallback sang backend:", err);
-      }
 
+        // 🔥 BƯỚC QUAN TRỌNG: XỬ LÝ KHI KHÔNG TÌM THẤY JOB NÀO
+        if (!matchedJobs || matchedJobs.length === 0) {
+          console.log("⚠️ Không tìm thấy job phù hợp -> Chuyển sang chế độ Gợi ý chung");
+          isFallback = true;
+          // Lấy 5 job mới nhất/tốt nhất từ danh sách allJobs có sẵn ở client để gợi ý
+          matchedJobs = allJobs.slice(0, 5);
+        }
+
+        // Cập nhật UI (thẻ Job)
+        suggestedJobs = matchedJobs || [];
+
+        // 🧠 BƯỚC 3: TẠO PROMPT TRẢ LỜI NGƯỜI DÙNG
+        const jobContextString = suggestedJobs.map(j => `- ${j.title} tại ${j.location} (Lương: ${j.salaryMin || '?'} - ${j.salaryMax || '?'})`).join("\n");
+
+        let systemInstruction = "";
+
+        // Logic tạo câu trả lời tùy biến
+        if (isFallback) {
+          systemInstruction = `
+                Bạn là trợ lý tuyển dụng. Hiện KHÔNG TÌM THẤY job nào khớp chính xác.
+                Hãy xin lỗi và gợi ý các job nổi bật khác dưới đây:\n${jobContextString}
+            `;
+        } else {
+          // ✅ XỬ LÝ TRƯỜNG HỢP "NGOÀI/KHÁC" (EXCLUDE)
+          if (searchCriteria.excludeLocation) {
+            systemInstruction = `
+                    Bạn là trợ lý tuyển dụng.
+                    Người dùng đang tìm việc NGÀNH "${searchCriteria.industry || searchCriteria.query || 'này'}" ở CÁC KHU VỰC KHÁC (ngoài ${searchCriteria.excludeLocation}).
+                    
+                    Hệ thống đã tìm thấy các công việc phù hợp dưới đây:
+                    \n${jobContextString}\n
+
+                    Hãy trả lời theo mẫu sau:
+                    "Có chứ, dưới đây là các công việc [Tên ngành] ở các khu vực khác ngoài [${searchCriteria.excludeLocation}] mà mình tìm được:"
+                    Sau đó liệt kê ngắn gọn 2-3 job.
+                `;
+          } else {
+            // ✅ TRƯỜNG HỢP BÌNH THƯỜNG
+            systemInstruction = `
+                    Bạn là trợ lý tuyển dụng.
+                    Dựa vào danh sách job tìm được:\n${jobContextString}\n
+                    Hãy xác nhận đã tìm thấy job theo yêu cầu (ngành, địa điểm, lương...).
+                    Giới thiệu ngắn gọn 2-3 job tốt nhất.
+                `;
+          }
+        }
+        const finalPrompt = [
+          { role: "system", content: systemInstruction },
+          { role: "user", content: inputMessage.trim() }
+        ];
+
+        const finalResponse = await window.puter.ai.chat(finalPrompt, { model: "gpt-4o-mini" });
+        aiText = finalResponse?.message?.content || finalResponse?.toString();
+
+      } else {
+        throw new Error("Puter SDK không khả dụng");
+      }
 
       // 🔁 Nếu GPT-5 lỗi hoặc không tìm thấy job
       if (!aiText || !suggestedJobs.length) {

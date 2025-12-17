@@ -1,6 +1,7 @@
 package com.example.JobPortal.service.itf;
 
 import com.example.JobPortal.dto.JobDto;
+import com.example.JobPortal.dto.JobSearchCriteria;
 import com.example.JobPortal.enums.JobStatus;
 import com.example.JobPortal.model.Jobs;
 import org.springframework.data.domain.Page;
@@ -38,4 +39,6 @@ public interface JobService {
     List<JobDto> findByLocation(String s);
 
     List<JobDto> getJobsByVisibility(int visible);
+
+    List<JobDto> searchJobsAdvanced(JobSearchCriteria criteria);
 }

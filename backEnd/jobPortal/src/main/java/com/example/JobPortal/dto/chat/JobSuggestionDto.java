@@ -58,4 +58,7 @@ public class JobSuggestionDto {
     private String CompanyEmail;
     private String CompanyPhone;
 
+    private Boolean visible = false;
+    private List<String> benefit = new ArrayList<>();
+
 }
